@@ -17,7 +17,7 @@ public sealed class Plugin : BasePlugin
 {
     public const string PluginGuid = "com.openai.dungeonsettlers.expeditioneditor";
     public const string PluginName = "Dungeon Settlers Expedition Editor";
-    public const string PluginVersion = "2.1.1-0.4.17";
+    public const string PluginVersion = "2.1.3-0.4.18";
 
     internal static Plugin Instance { get; private set; }
     internal static readonly CharacterSettings[] Characters = new CharacterSettings[4];
@@ -26,29 +26,29 @@ public sealed class Plugin : BasePlugin
     private ConfigEntry<bool> _nativeAllGenius;
     private ConfigEntry<bool> _diagnosticLogging;
 
-    // DS_B.0.4.17 / supplied GameAssembly.dll.
+    // DS_B.0.4.18 / supplied GameAssembly.dll.
     // DetermineEstablishTalents first chooses a target talent sum, then rolls six individual talents.
     // v1.1 can temporarily replace all seven RNG calls for ONE reroll, allowing exact per-slot talent profiles.
     private static readonly int[] TalentNativeRvas =
     {
-        0xA4283B, // target sum
-        0xA4286D, // Strength
-        0xA4289F, // Constitution
-        0xA428C8, // WillPower
-        0xA428F1, // Intelligence
-        0xA4291A, // Agility
-        0xA42943, // Perception
+        0xA48D5B, // target sum
+        0xA48D8D, // Strength
+        0xA48DBF, // Constitution
+        0xA48DE8, // WillPower
+        0xA48E11, // Intelligence
+        0xA48E3A, // Agility
+        0xA48E63, // Perception
     };
 
     private static readonly byte[][] TalentNativeExpected =
     {
-        new byte[] { 0xE8, 0x00, 0xFE, 0xEB, 0x02 },
-        new byte[] { 0xE8, 0xCE, 0xFD, 0xEB, 0x02 },
-        new byte[] { 0xE8, 0x9C, 0xFD, 0xEB, 0x02 },
-        new byte[] { 0xE8, 0x73, 0xFD, 0xEB, 0x02 },
-        new byte[] { 0xE8, 0x4A, 0xFD, 0xEB, 0x02 },
-        new byte[] { 0xE8, 0x21, 0xFD, 0xEB, 0x02 },
-        new byte[] { 0xE8, 0xF8, 0xFC, 0xEB, 0x02 },
+        new byte[] { 0xE8, 0xC0, 0xBC, 0xEB, 0x02 },
+        new byte[] { 0xE8, 0x8E, 0xBC, 0xEB, 0x02 },
+        new byte[] { 0xE8, 0x5C, 0xBC, 0xEB, 0x02 },
+        new byte[] { 0xE8, 0x33, 0xBC, 0xEB, 0x02 },
+        new byte[] { 0xE8, 0x0A, 0xBC, 0xEB, 0x02 },
+        new byte[] { 0xE8, 0xE1, 0xBB, 0xEB, 0x02 },
+        new byte[] { 0xE8, 0xB8, 0xBB, 0xEB, 0x02 },
     };
 
     private const uint PageExecuteReadWrite = 0x40;
@@ -68,7 +68,7 @@ public sealed class Plugin : BasePlugin
     private readonly Dictionary<int, int> _persistenceSlotByGenerationSeed = new Dictionary<int, int>();
 
     // v1.6: the two Create Campaign UI pages do not call the presenter payload methods in the
-    // actual DS_B.0.4.17 start path. The reliable runtime boundary is CampaignStartingSpawnHelper,
+    // actual DS_B.0.4.18 start path. The reliable runtime boundary is CampaignStartingSpawnHelper,
     // which consumes the establish tokens and immediately spawns the four founders. Keep a short
     // context window around that flow and patch the RecruitCandidateData objects produced inside it.
     private bool _campaignSpawnContextActive;
@@ -111,12 +111,15 @@ public sealed class Plugin : BasePlugin
     {
         "Vanilla",
         "AFFECTER_Begger", "AFFECTER_Blacksmith", "AFFECTER_Butcher", "AFFECTER_Carpenter",
-        "AFFECTER_Conscript", "AFFECTER_Deserter", "AFFECTER_Hunter", "AFFECTER_Messenger",
-        "AFFECTER_Miner", "AFFECTER_Thief", "AFFECTER_Undertaker", "AFFECTER_ChiefBodyguard",
-        "AFFECTER_CursedChild", "AFFECTER_Druid", "AFFECTER_ExiledLord", "AFFECTER_Gardener",
-        "AFFECTER_Mage", "AFFECTER_Mercenary", "AFFECTER_NobleAdventurer", "AFFECTER_Philosopher",
-        "AFFECTER_Prodigy", "AFFECTER_ScaleCraftsman", "AFFECTER_Scout", "AFFECTER_Squire",
-        "AFFECTER_SwampKeeper", "AFFECTER_TavernRunner", "AFFECTER_Carter", "AFFECTER_NightWatch"
+        "AFFECTER_Carter", "AFFECTER_ChiefBodyguard", "AFFECTER_Conscript", "AFFECTER_CursedChild",
+        "AFFECTER_Deserter", "AFFECTER_Druid", "AFFECTER_ExiledLord", "AFFECTER_ForestKeeper",
+        "AFFECTER_Gambler", "AFFECTER_Gardener", "AFFECTER_Hooligan", "AFFECTER_Hunter",
+        "AFFECTER_Lumberjack", "AFFECTER_Mage", "AFFECTER_Mercenary", "AFFECTER_Messenger",
+        "AFFECTER_Miner", "AFFECTER_NightWatch", "AFFECTER_NobleAdventurer", "AFFECTER_Peddler",
+        "AFFECTER_Philosopher", "AFFECTER_Porter", "AFFECTER_Prodigy", "AFFECTER_ScaleCraftsman",
+        "AFFECTER_Scout", "AFFECTER_Slave", "AFFECTER_SnakeCatcher", "AFFECTER_Squire",
+        "AFFECTER_SwampKeeper", "AFFECTER_TavernRunner", "AFFECTER_Thief", "AFFECTER_Undertaker",
+        "AFFECTER_Wanderer"
     };
 
     internal static readonly string[] TraitOptionsFirst =
@@ -222,7 +225,7 @@ public sealed class Plugin : BasePlugin
                 Log.LogWarning("Per-slot talent lock is enabled, so the global native all-Genius patch was disabled to avoid conflicts.");
             }
 
-            Log.LogInfo("Expedition Editor v2.1.1 (DS_B.0.4.17) loaded. Press F4 to open/close the editor.");
+            Log.LogInfo("Expedition Editor v2.1.3 (DS_B.0.4.18) loaded. Press F4 to open/close the editor.");
             Diag("Race/gender/profile remain vanilla. Campaign persistence uses the verified SetUnitStatus + direct StatusComponent write path.");
         }
         catch (Exception ex)
@@ -234,7 +237,7 @@ public sealed class Plugin : BasePlugin
     private void InstallPersistenceHooks()
     {
         // The v1.4 trigger (OnEstablishSelectionConfirmed) exists in metadata but is not actually
-        // invoked by the Next/start path in DS_B.0.4.17. v1.5 therefore hooks the payload builder
+        // invoked by the Next/start path in DS_B.0.4.18. v1.5 therefore hooks the payload builder
         // itself. This is still on the UI/presenter side and avoids the unsafe TryGenerate bridge.
         try
         {
