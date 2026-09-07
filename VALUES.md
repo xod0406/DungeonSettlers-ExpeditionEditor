@@ -1,4 +1,4 @@
-﻿# Expedition Editor v0.9 values
+﻿# Expedition Editor v2.1.2 values
 
 The in-game picker already includes these values.
 
@@ -12,7 +12,7 @@ Warrior, Guardian, Fortress, Execution, Berserker, Burst, Tide, Harmony, Blitz, 
 HappyFool, Curious, BellyBeggar, LightEater, Optimistic, Pessimistic, CunningGetaway, Psychopath, DullTongue, Adventurous, Pacifist, RapidRecoverd, SlowLearner, SettlementPrefer, Townsfolk, Claustrophobic, NatureLover, Butterfingers, SimpleMinded, Perfectionist, IndoorPerson, Impatient, HateHuman, HateElf, HateLizard, HateLycan, HeavySnorer, Shooter, Blessed
 
 ## General recruit backgrounds
-Begger, Blacksmith, Butcher, Carpenter, Conscript, Deserter, Hunter, Messenger, Miner, Thief, Undertaker, ChiefBodyguard, CursedChild, Druid, ExiledLord, Gardener, Mage, Mercenary, NobleAdventurer, Philosopher, Prodigy, ScaleCraftsman, Scout, Squire, SwampKeeper, TavernRunner, Carter, NightWatch
+Begger, Blacksmith, Butcher, Carpenter, Carter, ChiefBodyguard, Conscript, CursedChild, Deserter, Druid, ExiledLord, ForestKeeper, Gambler, Gardener, Hooligan, Hunter, Lumberjack, Mage, Mercenary, Messenger, Miner, NightWatch, NobleAdventurer, Peddler, Philosopher, Porter, Prodigy, ScaleCraftsman, Scout, Slave, SnakeCatcher, Squire, SwampKeeper, TavernRunner, Thief, Undertaker, Wanderer
 
 ## Notes
 - `Vanilla` on Background keeps the generated background.

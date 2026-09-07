@@ -1,3 +1,18 @@
+﻿# v2.1.3 - DS_B.0.4.18 compatibility
+
+- Updated the native `DetermineEstablishTalents` patch sites for Dungeon Settlers v0.4.18.
+- New seven patch RVAs: `0xA48D5B`, `0xA48D8D`, `0xA48DBF`, `0xA48DE8`, `0xA48E11`, `0xA48E3A`, `0xA48E63`.
+- Verified all seven calls target the same RNG routine at RVA `0x3904A20`.
+- Kept the v2.1.2 background picker (37 live backgrounds), campaign persistence, generated-stat transfer, skill filtering, and UI logic unchanged.
+- Compatibility target is now DS_B.0.4.18.
+
+# v2.1.2 - complete background picker
+
+- Synced the Background picker against the live DS_B.0.4.17 TraitTableData pool.
+- Added 9 backgrounds missing from v2.1.1: ForestKeeper, Gambler, Hooligan, Lumberjack, Peddler, Porter, Slave, SnakeCatcher, Wanderer.
+- Background picker now exposes all 37 unique live background keys reported by the diagnostic plugin.
+- No changes to campaign persistence, generated stat/talent transfer, skill filtering, or native talent RVAs.
+
 # v2.1.1 - DS_B.0.4.17 compatibility
 
 - Updated native `DetermineEstablishTalents` RVAs and expected bytes for DS_B.0.4.17.
