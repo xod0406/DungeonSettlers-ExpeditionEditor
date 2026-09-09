@@ -1,18 +1,24 @@
-# DS_B.0.4.18 compatibility verification
+# Compatibility
 
-Target: Dungeon Settlers v0.4.18 (Windows x64 / BepInEx 6 IL2CPP)
+Target game: **Dungeon Settlers DS_B.0.4.19**  
+Platform: **Windows x64**  
+Mod loader: **BepInEx 6 IL2CPP**
 
-The v0.4.17 build stopped safely at the first old talent patch site because the bytes no longer matched.
-For v0.4.18, direct disassembly of the supplied `GameAssembly.dll` identified the same seven-call talent RNG pattern at:
+## Build Identity
 
-- target sum: `0xA48D5B` -> `E8 C0 BC EB 02`
-- Strength: `0xA48D8D` -> `E8 8E BC EB 02`
-- Constitution: `0xA48DBF` -> `E8 5C BC EB 02`
-- WillPower: `0xA48DE8` -> `E8 33 BC EB 02`
-- Intelligence: `0xA48E11` -> `E8 0A BC EB 02`
-- Agility: `0xA48E3A` -> `E8 E1 BB EB 02`
-- Perception: `0xA48E63` -> `E8 B8 BB EB 02`
+- Plugin GUID: `com.openai.dungeonsettlers.expeditioneditor`
+- Plugin version metadata: `2.1.4-0.4.19`
+- Tested internal build identity: `v2.1.4-saveonly-nativefix (DS_B.0.4.19)`
 
-All seven calls resolve to the same RNG routine at RVA `0x3904A20`, matching the v0.4.17 code structure.
+## Verified Behavior
 
-The existing v2.1.2 gameplay/UI/persistence logic is retained; only compatibility constants and version metadata were updated in the install DLL.
+The supplied DLL was user-tested on DS_B.0.4.19 and confirmed to:
+
+- apply configured founder major stats correctly when entering the campaign;
+- apply individual talent grades correctly;
+- preserve the configured values after saving and loading;
+- preserve the same values through repeated save/load cycles without the previous stat drift.
+
+## Update Warning
+
+A future Dungeon Settlers update may change `GameAssembly.dll`, native offsets, or IL2CPP structures. If the game version changes, verify compatibility before continuing to use this build.

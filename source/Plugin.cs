@@ -17,7 +17,7 @@ public sealed class Plugin : BasePlugin
 {
     public const string PluginGuid = "com.openai.dungeonsettlers.expeditioneditor";
     public const string PluginName = "Dungeon Settlers Expedition Editor";
-    public const string PluginVersion = "2.1.3-0.4.18";
+    public const string PluginVersion = "2.1.4-0.4.19";
 
     internal static Plugin Instance { get; private set; }
     internal static readonly CharacterSettings[] Characters = new CharacterSettings[4];
@@ -26,7 +26,7 @@ public sealed class Plugin : BasePlugin
     private ConfigEntry<bool> _nativeAllGenius;
     private ConfigEntry<bool> _diagnosticLogging;
 
-    // DS_B.0.4.18 / supplied GameAssembly.dll.
+    // DS_B.0.4.19 / supplied GameAssembly.dll.
     // DetermineEstablishTalents first chooses a target talent sum, then rolls six individual talents.
     // v1.1 can temporarily replace all seven RNG calls for ONE reroll, allowing exact per-slot talent profiles.
     private static readonly int[] TalentNativeRvas =
@@ -106,6 +106,14 @@ public sealed class Plugin : BasePlugin
     private readonly object[] _capturedStatusComponentBySlot = new object[4];
     private readonly bool[] _talentsInjectedIntoStatus = new bool[4];
     private int _directGeneratedWriteDepth;
+
+    // v2.1.4 save-only-nativefix: never leave talent compensation in the live StatusComponent.
+    // The v2.1.3-derived founder spawn path remains unchanged. Only while the game is building
+    // CampaignSaveData do we temporarily ask the game's own SetGeneratedValue(...) to serialize
+    // a talent-compensated major-stat target, then restore the configured live target immediately.
+    // This avoids direct Il2Cpp dictionary reads/writes, which proved unreliable on DS_B.0.4.19.
+    private int _campaignSaveSerializeDepth;
+    private readonly List<SaveGeneratedRestoreRecord> _saveGeneratedRestoreRecords = new List<SaveGeneratedRestoreRecord>();
 
     internal static readonly string[] BackgroundOptions =
     {
@@ -191,6 +199,7 @@ public sealed class Plugin : BasePlugin
             InstallPersistenceHooks();
             InstallCampaignSpawnHooks();
             InstallFinalStatusHooks();
+            InstallSaveOnlyCompensationHooks();
 
             MethodInfo[] rerollMethods = ui.GetMethods(AccessTools.all)
                 .Where(m =>
@@ -225,8 +234,8 @@ public sealed class Plugin : BasePlugin
                 Log.LogWarning("Per-slot talent lock is enabled, so the global native all-Genius patch was disabled to avoid conflicts.");
             }
 
-            Log.LogInfo("Expedition Editor v2.1.3 (DS_B.0.4.18) loaded. Press F4 to open/close the editor.");
-            Diag("Race/gender/profile remain vanilla. Campaign persistence uses the verified SetUnitStatus + direct StatusComponent write path.");
+            Log.LogInfo("Expedition Editor v2.1.4-saveonly-nativefix (DS_B.0.4.19) loaded. Press F4 to open/close the editor.");
+            Diag("Race/gender/profile remain vanilla. Founder spawn behavior is unchanged from minimal-loadfix; talent compensation is temporary and save-only.");
         }
         catch (Exception ex)
         {
@@ -470,6 +479,236 @@ public sealed class Plugin : BasePlugin
         {
             Log.LogError($"Final founder status hook failed: {ex}");
         }
+    }
+
+    private void InstallSaveOnlyCompensationHooks()
+    {
+        // DS_B.0.4.19 has a parameterless Serialize() that returns CampaignSaveData.
+        // Find it by signature so this does not depend on a generated interop type name.
+        int patched = 0;
+        var seen = new HashSet<MethodBase>();
+        foreach (Assembly assembly in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            Type[] types;
+            try { types = assembly.GetTypes(); }
+            catch (ReflectionTypeLoadException ex) { types = ex.Types?.Where(t => t != null).ToArray() ?? Array.Empty<Type>(); }
+            catch { continue; }
+
+            foreach (Type type in types)
+            {
+                if (type == null) continue;
+                MethodInfo[] methods;
+                try { methods = type.GetMethods(AccessTools.all); }
+                catch { continue; }
+
+                foreach (MethodInfo method in methods)
+                {
+                    if (method == null || method.IsAbstract || method.ContainsGenericParameters) continue;
+                    if (method.DeclaringType != type) continue;
+                    if (!string.Equals(method.Name, "Serialize", StringComparison.Ordinal)) continue;
+                    if (method.GetParameters().Length != 0) continue;
+                    string returnName = method.ReturnType?.Name ?? "";
+                    string returnFullName = method.ReturnType?.FullName ?? "";
+                    if (!string.Equals(returnName, "CampaignSaveData", StringComparison.Ordinal) &&
+                        !returnFullName.EndsWith(".CampaignSaveData", StringComparison.Ordinal))
+                        continue;
+                    if (!seen.Add(method)) continue;
+
+                    _harmony.Patch(method,
+                        prefix: new HarmonyMethod(typeof(Plugin), nameof(CampaignSaveSerializePrefix)),
+                        postfix: new HarmonyMethod(typeof(Plugin), nameof(CampaignSaveSerializePostfix)),
+                        finalizer: new HarmonyMethod(typeof(Plugin), nameof(CampaignSaveSerializeFinalizer)));
+                    patched++;
+                    Diag($"SAVE-ONLY compensation hook: {method.DeclaringType?.FullName}.{method}");
+                }
+            }
+        }
+
+        if (patched == 0)
+            Log.LogWarning("SAVE-ONLY compensation: no parameterless Serialize() returning CampaignSaveData was found. No live stat bucket will be modified.");
+        else
+            Diag($"SAVE-ONLY compensation: patched {patched} CampaignSaveData serializer method(s).");
+    }
+
+    private static void CampaignSaveSerializePrefix()
+    {
+        Instance?.BeginSaveOnlyTalentCompensation();
+    }
+
+    private static void CampaignSaveSerializePostfix()
+    {
+        Instance?.EndSaveOnlyTalentCompensation("postfix");
+    }
+
+    private static Exception CampaignSaveSerializeFinalizer(Exception __exception)
+    {
+        Instance?.EndSaveOnlyTalentCompensation("finalizer");
+        return __exception;
+    }
+
+    private void BeginSaveOnlyTalentCompensation()
+    {
+        _campaignSaveSerializeDepth++;
+        if (_campaignSaveSerializeDepth != 1) return;
+
+        _saveGeneratedRestoreRecords.Clear();
+        int adjusted = 0;
+        for (int slot = 0; slot < Characters.Length; slot++)
+        {
+            object status = _capturedStatusComponentBySlot[slot];
+            CharacterSettings c = Characters[slot];
+            if (status == null || c == null || !c.Apply.Value || !c.LockMajorStats.Value) continue;
+
+            bool allGenius = _nativeAllGenius != null && _nativeAllGenius.Value;
+            if (!allGenius && !c.LockTalents.Value) continue;
+
+            adjusted += TemporarilyCompensateGeneratedMajorNative(status, slot, "Strength", c.Strength.Value, allGenius ? 3 : TalentValue(c.StrengthTalent.Value));
+            adjusted += TemporarilyCompensateGeneratedMajorNative(status, slot, "Constitution", c.Constitution.Value, allGenius ? 3 : TalentValue(c.ConstitutionTalent.Value));
+            adjusted += TemporarilyCompensateGeneratedMajorNative(status, slot, "WillPower", c.WillPower.Value, allGenius ? 3 : TalentValue(c.WillPowerTalent.Value));
+            adjusted += TemporarilyCompensateGeneratedMajorNative(status, slot, "Intelligence", c.Intelligence.Value, allGenius ? 3 : TalentValue(c.IntelligenceTalent.Value));
+            adjusted += TemporarilyCompensateGeneratedMajorNative(status, slot, "Agility", c.Agility.Value, allGenius ? 3 : TalentValue(c.AgilityTalent.Value));
+            adjusted += TemporarilyCompensateGeneratedMajorNative(status, slot, "Perception", c.Perception.Value, allGenius ? 3 : TalentValue(c.PerceptionTalent.Value));
+        }
+
+        if (adjusted > 0)
+            Diag($"SAVE-ONLY NATIVE compensation BEGIN: temporarily adjusted {adjusted} major generated value(s) through SetGeneratedValue; configured live targets will be restored immediately after CampaignSaveData serialization.");
+    }
+
+    private int TemporarilyCompensateGeneratedMajorNative(object status, int slot, string statName, int configuredTarget, int talentDelta)
+    {
+        // Moderate is zero. Do not touch the StatusComponent at all for a zero-delta talent.
+        if (status == null || talentDelta == 0) return 0;
+
+        // SetGeneratedValue expects the major-stat target before the talent/progression layer is
+        // applied during load. Therefore serialize (configured final target - talent delta).
+        // Example: desired 10 with Poor(-1) => temporarily SetGeneratedValue(..., 11), so load
+        // rebuilds default/generated to 11 and then applies Poor -1, ending at exactly 10.
+        int serializationTarget = configuredTarget - talentDelta;
+        try
+        {
+            _directGeneratedWriteDepth++;
+            try { SetGeneratedStatusValue(status, statName, serializationTarget); }
+            finally { _directGeneratedWriteDepth--; }
+
+            _saveGeneratedRestoreRecords.Add(new SaveGeneratedRestoreRecord
+            {
+                Status = status,
+                Slot = slot,
+                StatName = statName,
+                ConfiguredTarget = configuredTarget,
+            });
+            Diag($"SAVE-ONLY NATIVE Slot {slot + 1}: {statName} target {configuredTarget}->{serializationTarget} for serialization only (talent {talentDelta:+0;-0;0}).");
+            return 1;
+        }
+        catch (TargetInvocationException ex)
+        {
+            Log.LogWarning($"SAVE-ONLY NATIVE Slot {slot + 1}: {statName} temporary SetGeneratedValue failed: {ex.InnerException?.Message ?? ex.Message}");
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning($"SAVE-ONLY NATIVE Slot {slot + 1}: {statName} temporary SetGeneratedValue failed: {ex.Message}");
+            return 0;
+        }
+    }
+
+    private void EndSaveOnlyTalentCompensation(string source)
+    {
+        if (_campaignSaveSerializeDepth <= 0) return;
+        _campaignSaveSerializeDepth--;
+        if (_campaignSaveSerializeDepth != 0) return;
+
+        int restored = 0;
+        for (int i = _saveGeneratedRestoreRecords.Count - 1; i >= 0; i--)
+        {
+            SaveGeneratedRestoreRecord record = _saveGeneratedRestoreRecords[i];
+            if (record == null || record.Status == null) continue;
+            try
+            {
+                _directGeneratedWriteDepth++;
+                try { SetGeneratedStatusValue(record.Status, record.StatName, record.ConfiguredTarget); }
+                finally { _directGeneratedWriteDepth--; }
+                restored++;
+            }
+            catch (TargetInvocationException ex)
+            {
+                Log.LogWarning($"SAVE-ONLY NATIVE restore Slot {record.Slot + 1}: {record.StatName} failed: {ex.InnerException?.Message ?? ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning($"SAVE-ONLY NATIVE restore Slot {record.Slot + 1}: {record.StatName} failed: {ex.Message}");
+            }
+        }
+        _saveGeneratedRestoreRecords.Clear();
+        if (restored > 0)
+            Diag($"SAVE-ONLY NATIVE compensation END ({source}): restored {restored} configured live major target(s).");
+    }
+
+    private static bool TryReadDictionaryValue(object dict, object key, Type valueType, out object value)
+    {
+        value = null;
+        if (dict == null || key == null) return false;
+        Type dictType = dict.GetType();
+
+        MethodInfo tryGet = dictType.GetMethods(AccessTools.all)
+            .FirstOrDefault(m => m.Name == "TryGetValue" && m.GetParameters().Length == 2);
+        if (tryGet != null)
+        {
+            object[] args = { key, DefaultFor(valueType) };
+            try
+            {
+                object ok = tryGet.Invoke(dict, args);
+                if (ok != null && Convert.ToBoolean(ok))
+                {
+                    value = args[1];
+                    return value != null;
+                }
+                return false;
+            }
+            catch { }
+        }
+
+        MethodInfo getItem = dictType.GetMethods(AccessTools.all)
+            .FirstOrDefault(m => m.Name == "get_Item" && m.GetParameters().Length == 1);
+        if (getItem == null) return false;
+        try
+        {
+            value = getItem.Invoke(dict, new[] { key });
+            return value != null;
+        }
+        catch { return false; }
+    }
+
+    private static bool TryWriteDictionaryValue(object dict, object key, object value)
+    {
+        if (dict == null || key == null) return false;
+        Type dictType = dict.GetType();
+        MethodInfo setItem = dictType.GetMethods(AccessTools.all)
+            .FirstOrDefault(m => m.Name == "set_Item" && m.GetParameters().Length == 2);
+        if (setItem == null) return false;
+        try
+        {
+            setItem.Invoke(dict, new[] { key, value });
+            return true;
+        }
+        catch { return false; }
+    }
+
+    private static object ConvertFloatingNumeric(double value, Type targetType)
+    {
+        Type t = Nullable.GetUnderlyingType(targetType) ?? targetType;
+        if (t == typeof(float)) return (float)value;
+        if (t == typeof(double)) return value;
+        if (t == typeof(decimal)) return (decimal)value;
+        if (t == typeof(long)) return (long)value;
+        if (t == typeof(int)) return (int)value;
+        if (t == typeof(short)) return (short)value;
+        if (t == typeof(byte)) return (byte)Math.Max(0, value);
+        if (t == typeof(sbyte)) return (sbyte)value;
+        if (t == typeof(uint)) return (uint)Math.Max(0, value);
+        if (t == typeof(ulong)) return (ulong)Math.Max(0, value);
+        if (t == typeof(ushort)) return (ushort)Math.Max(0, value);
+        return Convert.ChangeType(value, t);
     }
 
     private static void GeneratedValueInterceptPrefix(MethodBase __originalMethod, object __instance, object[] __args)
@@ -1383,40 +1622,23 @@ public sealed class Plugin : BasePlugin
 
     private static void WriteGeneratedStatusDictionary(object dict, CharacterSettings c, bool stats, bool talents, bool allGenius)
     {
-        Type dictType = dict.GetType();
-        Type[] ga = dictType.GetGenericArguments();
-        if (ga.Length != 2) return;
-        Type statType = ga[0];
-        Type valueType = ga[1];
-        MethodInfo setItem = dictType.GetMethods(AccessTools.all)
-            .FirstOrDefault(m => m.Name == "set_Item" && m.GetParameters().Length == 2);
-        if (setItem == null) return;
-
-        void Put(string name, int value)
-        {
-            object key = Enum.Parse(statType, name, true);
-            object val = ConvertNumeric(value, valueType);
-            setItem.Invoke(dict, new[] { key, val });
-        }
-
-        if (stats)
-        {
-            Put("Strength", c.Strength.Value);
-            Put("Constitution", c.Constitution.Value);
-            Put("WillPower", c.WillPower.Value);
-            Put("Intelligence", c.Intelligence.Value);
-            Put("Agility", c.Agility.Value);
-            Put("Perception", c.Perception.Value);
-        }
-        if (talents)
-        {
-            Put("TalentStrength", allGenius ? 3 : TalentValue(c.StrengthTalent.Value));
-            Put("TalentConstitution", allGenius ? 3 : TalentValue(c.ConstitutionTalent.Value));
-            Put("TalentWillPower", allGenius ? 3 : TalentValue(c.WillPowerTalent.Value));
-            Put("TalentIntelligence", allGenius ? 3 : TalentValue(c.IntelligenceTalent.Value));
-            Put("TalentAgility", allGenius ? 3 : TalentValue(c.AgilityTalent.Value));
-            Put("TalentPerception", allGenius ? 3 : TalentValue(c.PerceptionTalent.Value));
-        }
+        // v2.1.4 minimal load fix:
+        // DO NOT write configured absolute values directly into StatusComponent._generatedStats.
+        //
+        // SetGeneratedValue(...) is already the authoritative game method and converts a requested
+        // final major stat (for example 11) into the generated delta relative to the default stat
+        // (for example +1 over the game's default 10).  v2.1.3 then overwrote that converted delta
+        // with the absolute configured value (11) through this fallback dictionary writer.
+        // On save/load the game correctly rebuilds default 10 + generated 11, producing the observed
+        // +10 inflation.  Talent entries written here could likewise be re-applied during load.
+        //
+        // Keep every v2.1.3 spawn/talent/live-status path unchanged and simply stop corrupting the
+        // persistence bucket after SetGeneratedValue has already populated it correctly.
+        _ = dict;
+        _ = c;
+        _ = stats;
+        _ = talents;
+        _ = allGenius;
     }
 
     private void RemovePendingFinalStatusSlot(int slot)
@@ -2641,6 +2863,14 @@ public sealed class Plugin : BasePlugin
         public DateTime NextAttemptUtc;
         public int Attempts;
         public int SuccessfulWrites;
+    }
+
+    private sealed class SaveGeneratedRestoreRecord
+    {
+        public object Status;
+        public int Slot;
+        public string StatName;
+        public int ConfiguredTarget;
     }
 
     internal sealed class CharacterSettings

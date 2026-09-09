@@ -1,16 +1,20 @@
-# Dungeon Settlers Expedition Editor v2.1.3
+# Dungeon Settlers Expedition Editor v2.1.4
 
-Target game: **Dungeon Settlers DS_B.0.4.18**  
-Requirements: **BepInEx 6 IL2CPP / Windows x64**
+Target game: **Dungeon Settlers DS_B.0.4.19**  
+Platform: **Windows x64**  
+Required mod loader: **BepInEx 6 IL2CPP**
 
-A character editor mod for the four starting Expedition members. It allows you to customize their backgrounds, traits, major and minor skills, base attributes, and talents. The selected settings are preserved not only on the character creation screen, but also after the campaign actually begins.
+Dungeon Settlers Expedition Editor lets you customize the four starting expedition members before beginning a campaign. It supports backgrounds, traits, main and sub skills, all six major stats, and individual talent grades.
+
+This v2.1.4 release is based on the user-tested save-only native persistence fix. The configured founder stats and talents are preserved when the campaign begins and remain correct after save/load cycles.
 
 ## Installation
 
 1. Install **BepInEx 6 IL2CPP x64** for Dungeon Settlers.
-2. If this is your first time installing BepInEx, launch the game once and close it so that the `BepInEx\interop` folder is generated.
-3. Extract the contents of this ZIP directly into the **Dungeon Settlers game installation folder**.
-4. Installation is complete if the following file exists:
+2. Launch and close the game once if BepInEx has not generated its folders yet.
+3. Copy the `BepInEx` folder from this release into the Dungeon Settlers installation directory.
+4. Allow Windows to merge the folders if prompted.
+5. Confirm that the DLL exists here:
 
 ```text
 Dungeon Settlers
@@ -19,71 +23,87 @@ Dungeon Settlers
       └─ DungeonSettlers.ExpeditionEditor.dll
 ```
 
-5. Launch the game and press **F4** to open or close the editor.
+6. Launch the game and press **F4** to open or close the editor.
 
-PowerShell, the .NET SDK, and building from source are **not required for normal users**.
+No .NET SDK or source compilation is required for normal installation.
 
 ## Features
 
-- Open / close the editor with F4
-- Individual settings for Slots 1–4
-- Background selection
-- Up to 3 personal traits
-- 3 major skills
-- 3 minor skills
-- Fixed values for all 6 base attributes
-- Individual talent selection for all 6 attributes
-- Selected values persist after the campaign begins
-- Race / gender use the game's built-in lock feature
-- Name / appearance use the game's normal reroll system
-- Unimplemented minor skills `Unbreakable`, `Logging`, `Mining`, `Cooking`, `Crafting`, and `Construction` are excluded from the selection list
+- Configure Slots 1-4 independently.
+- Select a background.
+- Select up to three personal traits.
+- Select three main skills.
+- Select three sub skills.
+- Configure all six major stats.
+- Configure all six talent grades individually.
+- Preserve configured founder stats and talents across save/load.
+- Race and gender continue to use the game's vanilla lock system.
+- Name and appearance continue to use the game's vanilla reroll system.
+- Unimplemented sub-skill enum values are hidden from the picker.
 
-## Talent Setup
+## Individual Talent Grades
 
-To manually set talents for a slot, disable the global **All 6 Genius** option and enable `Talent lock` for the desired slot.
+To configure talents for a slot:
 
-Select all 6 talents, then click **`ARM Slot X for NEXT reroll`**. Close the editor with F4 and reroll **only that slot within 30 seconds**.
+1. Disable the global all-Genius option.
+2. Enable that slot's `Talent lock`.
+3. Choose the six talent grades.
+4. Press **`ARM Slot X for NEXT reroll`**.
+5. Close the editor with F4.
+6. Reroll **that slot only** within 30 seconds.
 
-The ARM step is used to make the recruitment screen's talent preview match your selected values. When the campaign actually begins, the final Status transfer path applies the selected talents and attributes again.
+The ARM step makes the recruitment-screen talent result match the selected values. The configured talents are also transferred to the actual founder when the campaign starts.
+
+## Talent Grade Values
+
+- Poor = `-1`
+- Moderate = `0`
+- Outstanding = `1`
+- Exceptional = `2`
+- Genius = `3`
 
 ## Configuration File
 
-The configuration file is created automatically on first launch.
+The mod creates its configuration file automatically:
 
 ```text
 BepInEx\config\com.openai.dungeonsettlers.expeditioneditor.cfg
 ```
 
-The release ZIP does not include a configuration file, so updating the mod will not overwrite your existing settings.
+The release ZIP does not include a configuration file, so updating the mod will not overwrite existing settings.
 
-If you need detailed logs for troubleshooting, enable the following option in the configuration file:
+Diagnostic logging can be enabled for troubleshooting:
 
 ```ini
 [General]
 DiagnosticLogging = true
 ```
 
-For normal use, keeping this set to `false` is recommended.
+For normal play, `false` is recommended.
+
+## Save/Load Persistence Fix
+
+Dungeon Settlers applies talent grades as numeric stat contributions when rebuilding a unit from save data. Earlier builds could therefore count the talent contribution again after loading.
+
+v2.1.4 keeps the proven founder-generation behavior and applies the persistence correction only while the game serializes `CampaignSaveData`. The correction uses the game's own `StatusComponent.SetGeneratedValue(...)` path, then immediately restores the live founder values after serialization. Talent values themselves are not suppressed or replaced.
+
+This approach was tested with repeated campaign starts and save/load cycles on **DS_B.0.4.19**.
 
 ## Source Code
 
-The `source` folder contains the mod source code and build script. Normal users do not need to use this folder.
+The `source` folder contains the exact source used for this tested build.
 
-To build the mod yourself, install the .NET SDK and run the following command from the `source` folder:
+To build manually, install the .NET SDK, open PowerShell in the `source` folder, and run:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
 .\build.ps1 -GameRoot "D:\steam\steamapps\common\Dungeon Settlers"
 ```
 
-The build script references the BepInEx and interop DLLs installed in the game folder and does not modify your existing configuration file.
-
 ## Compatibility
 
-This release was built and verified for **Dungeon Settlers DS_B.0.4.18**.
+This release targets **Dungeon Settlers DS_B.0.4.19**, Windows x64, and BepInEx 6 IL2CPP.
 
-If a future game update changes `GameAssembly.dll` code locations or the IL2CPP structure, some features may stop working until the mod is updated.
+A future game update may change native IL2CPP code or offsets and require a compatibility update.
 
-### v0.4.18 Compatibility Update
-
-This build updates the native `DetermineEstablishTalents` patch sites for DS_B.0.4.18. The gameplay, UI, and persistence logic are otherwise unchanged from the verified v2.1 Stable build.
+This is an unofficial community mod and is not affiliated with the game's developer or publisher.
