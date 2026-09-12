@@ -1,4 +1,4 @@
-# Expedition Editor v2.1.4 values
+# Expedition Editor v2.1.6 values
 
 ## Main skills
 
@@ -15,6 +15,8 @@ The unfinished enum values `Logging`, `Mining`, `Cooking`, `Crafting`, `Construc
 HappyFool, Curious, BellyBeggar, LightEater, Optimistic, Pessimistic, CunningGetaway, Psychopath, DullTongue, Adventurous, Pacifist, RapidRecoverd, SlowLearner, SettlementPrefer, Townsfolk, Claustrophobic, NatureLover, Butterfingers, SimpleMinded, Perfectionist, IndoorPerson, Impatient, HateHuman, HateElf, HateLizard, HateLycan, HeavySnorer, Shooter, Blessed
 
 ## General recruit backgrounds
+
+> **Known issue:** Do not select `Lumberjack`. The current game data contains an unfinished/broken implementation.
 
 Begger, Blacksmith, Butcher, Carpenter, Carter, ChiefBodyguard, Conscript, CursedChild, Deserter, Druid, ExiledLord, ForestKeeper, Gambler, Gardener, Hooligan, Hunter, Lumberjack, Mage, Mercenary, Messenger, Miner, NightWatch, NobleAdventurer, Peddler, Philosopher, Porter, Prodigy, ScaleCraftsman, Scout, Slave, SnakeCatcher, Squire, SwampKeeper, TavernRunner, Thief, Undertaker, Wanderer
 

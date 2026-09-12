@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -17,7 +17,7 @@ public sealed class Plugin : BasePlugin
 {
     public const string PluginGuid = "com.openai.dungeonsettlers.expeditioneditor";
     public const string PluginName = "Dungeon Settlers Expedition Editor";
-    public const string PluginVersion = "2.1.4-0.4.19";
+    public const string PluginVersion = "2.1.6-0.4.23";
 
     internal static Plugin Instance { get; private set; }
     internal static readonly CharacterSettings[] Characters = new CharacterSettings[4];
@@ -26,29 +26,29 @@ public sealed class Plugin : BasePlugin
     private ConfigEntry<bool> _nativeAllGenius;
     private ConfigEntry<bool> _diagnosticLogging;
 
-    // DS_B.0.4.19 / supplied GameAssembly.dll.
+    // DS_B.0.4.23 / supplied GameAssembly.dll.
     // DetermineEstablishTalents first chooses a target talent sum, then rolls six individual talents.
     // v1.1 can temporarily replace all seven RNG calls for ONE reroll, allowing exact per-slot talent profiles.
     private static readonly int[] TalentNativeRvas =
     {
-        0xA48D5B, // target sum
-        0xA48D8D, // Strength
-        0xA48DBF, // Constitution
-        0xA48DE8, // WillPower
-        0xA48E11, // Intelligence
-        0xA48E3A, // Agility
-        0xA48E63, // Perception
+        0xA61ABB, // target sum
+        0xA61AED, // Strength
+        0xA61B1F, // Constitution
+        0xA61B48, // WillPower
+        0xA61B71, // Intelligence
+        0xA61B9A, // Agility
+        0xA61BC3, // Perception
     };
 
     private static readonly byte[][] TalentNativeExpected =
     {
-        new byte[] { 0xE8, 0xC0, 0xBC, 0xEB, 0x02 },
-        new byte[] { 0xE8, 0x8E, 0xBC, 0xEB, 0x02 },
-        new byte[] { 0xE8, 0x5C, 0xBC, 0xEB, 0x02 },
-        new byte[] { 0xE8, 0x33, 0xBC, 0xEB, 0x02 },
-        new byte[] { 0xE8, 0x0A, 0xBC, 0xEB, 0x02 },
-        new byte[] { 0xE8, 0xE1, 0xBB, 0xEB, 0x02 },
-        new byte[] { 0xE8, 0xB8, 0xBB, 0xEB, 0x02 },
+        new byte[] { 0xE8, 0x10, 0xA2, 0xED, 0x02 },
+        new byte[] { 0xE8, 0xDE, 0xA1, 0xED, 0x02 },
+        new byte[] { 0xE8, 0xAC, 0xA1, 0xED, 0x02 },
+        new byte[] { 0xE8, 0x83, 0xA1, 0xED, 0x02 },
+        new byte[] { 0xE8, 0x5A, 0xA1, 0xED, 0x02 },
+        new byte[] { 0xE8, 0x31, 0xA1, 0xED, 0x02 },
+        new byte[] { 0xE8, 0x08, 0xA1, 0xED, 0x02 },
     };
 
     private const uint PageExecuteReadWrite = 0x40;
@@ -111,7 +111,7 @@ public sealed class Plugin : BasePlugin
     // The v2.1.3-derived founder spawn path remains unchanged. Only while the game is building
     // CampaignSaveData do we temporarily ask the game's own SetGeneratedValue(...) to serialize
     // a talent-compensated major-stat target, then restore the configured live target immediately.
-    // This avoids direct Il2Cpp dictionary reads/writes, which proved unreliable on DS_B.0.4.19.
+    // This avoids direct Il2Cpp dictionary reads/writes; the stable save-only native compensation remains unchanged for DS_B.0.4.23.
     private int _campaignSaveSerializeDepth;
     private readonly List<SaveGeneratedRestoreRecord> _saveGeneratedRestoreRecords = new List<SaveGeneratedRestoreRecord>();
 
@@ -234,7 +234,7 @@ public sealed class Plugin : BasePlugin
                 Log.LogWarning("Per-slot talent lock is enabled, so the global native all-Genius patch was disabled to avoid conflicts.");
             }
 
-            Log.LogInfo("Expedition Editor v2.1.4-saveonly-nativefix (DS_B.0.4.19) loaded. Press F4 to open/close the editor.");
+            Log.LogInfo("Expedition Editor v2.1.6-rva-hotfix (DS_B.0.4.23) loaded. Press F4 to open/close the editor.");
             Diag("Race/gender/profile remain vanilla. Founder spawn behavior is unchanged from minimal-loadfix; talent compensation is temporary and save-only.");
         }
         catch (Exception ex)
@@ -483,7 +483,7 @@ public sealed class Plugin : BasePlugin
 
     private void InstallSaveOnlyCompensationHooks()
     {
-        // DS_B.0.4.19 has a parameterless Serialize() that returns CampaignSaveData.
+        // DS_B.0.4.23 retains the parameterless Serialize() path used by the save-only compensation hook.
         // Find it by signature so this does not depend on a generated interop type name.
         int patched = 0;
         var seen = new HashSet<MethodBase>();

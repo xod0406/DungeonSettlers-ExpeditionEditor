@@ -1,21 +1,30 @@
-# Technical Notes - v2.1.4 Save-only Native Persistence Fix
+# Technical Notes
 
-This release keeps the v2.1.3-derived founder creation and talent application path intact.
+## DS_B.0.4.19 validated sites
 
-The final persistence fix does not leave talent compensation in the live `StatusComponent`. Instead, only while `CampaignSaveData` is being serialized, it temporarily calls the game's own `StatusComponent.SetGeneratedValue(...)` method with a serialization target that compensates for the numeric contribution of the selected talent grade.
+`0xA48D5B, 0xA48D8D, 0xA48DBF, 0xA48DE8, 0xA48E11, 0xA48E3A, 0xA48E63`
 
-Conceptually:
+## DS_B.0.4.23 verified method
 
-```text
-serialization target = configured final major stat - talent delta
-```
+The current interop assembly identifies `DetermineEstablishTalents` as MethodDef token `0x0600C00E`.
+`MethodAddressToToken.db` maps that method to native RVA `0xA61980`.
 
-Examples:
+Disassembly of that exact native function gives these seven RNG CALL sites:
 
-- Final 10 with Poor (-1): serialize 11, then load applies -1 -> 10.
-- Final 11 with Moderate (0): serialize 11 -> 11.
-- Final 12 with Outstanding (+1): serialize 11, then load applies +1 -> 12.
-- Final 13 with Exceptional (+2): serialize 11, then load applies +2 -> 13.
-- Final 14 with Genius (+3): serialize 11, then load applies +3 -> 14.
+`0xA61ABB, 0xA61AED, 0xA61B1F, 0xA61B48, 0xA61B71, 0xA61B9A, 0xA61BC3`
 
-Immediately after serialization, the configured live major-stat targets are restored through the same game-native method. A Harmony finalizer also attempts restoration if serialization throws. Talent values themselves are not suppressed or rewritten.
+Expected five-byte CALL signatures:
+
+- `E8 10 A2 ED 02`
+- `E8 DE A1 ED 02`
+- `E8 AC A1 ED 02`
+- `E8 83 A1 ED 02`
+- `E8 5A A1 ED 02`
+- `E8 31 A1 ED 02`
+- `E8 08 A1 ED 02`
+
+All seven calls resolve to native target RVA `0x393BCD0` in the supplied DS_B.0.4.23 `GameAssembly.dll`.
+
+## v2.1.5 failure
+
+v2.1.5 used `0xA60CBB ... 0xA60DC3`. Those addresses were exactly `0xE00` before the real CALL sites. The existing safety verification detected the mismatch before writing executable memory, so the incorrect build failed closed rather than patching unrelated code.

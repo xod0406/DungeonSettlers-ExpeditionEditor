@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Parameter(Mandatory=$true)]
     [string]$GameRoot
 )
@@ -21,7 +21,7 @@ foreach ($Path in $Required) {
     }
 }
 
-Write-Host "Building Dungeon Settlers Expedition Editor v2.1.4 minimal load fix (DS_B.0.4.19)..."
+Write-Host "Building Dungeon Settlers Expedition Editor v2.1.6 RVA hotfix (DS_B.0.4.23)..."
 dotnet build $Project -c Release -p:GameRoot="$GameRoot"
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet build failed with exit code $LASTEXITCODE. Plugin was NOT copied."

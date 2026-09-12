@@ -1,12 +1,12 @@
-# Dungeon Settlers Expedition Editor v2.1.4
+# Dungeon Settlers Expedition Editor v2.1.6
 
-Target game: **Dungeon Settlers DS_B.0.4.19**  
+Target game: **Dungeon Settlers DS_B.0.4.23**  
 Platform: **Windows x64**  
 Required mod loader: **BepInEx 6 IL2CPP**
 
 Dungeon Settlers Expedition Editor lets you customize the four starting expedition members before beginning a campaign. It supports backgrounds, traits, main and sub skills, all six major stats, and individual talent grades.
 
-This v2.1.4 release is based on the user-tested save-only native persistence fix. The configured founder stats and talents are preserved when the campaign begins and remain correct after save/load cycles.
+**v2.1.6 is the tested DS_B.0.4.23 compatibility release.** It fixes the native talent patch addresses used by the initial v2.1.5 compatibility attempt while preserving the proven v2.1.4 founder-generation and save/load persistence behavior.
 
 ## Installation
 
@@ -26,6 +26,12 @@ Dungeon Settlers
 6. Launch the game and press **F4** to open or close the editor.
 
 No .NET SDK or source compilation is required for normal installation.
+
+## Updating from an older version
+
+Replace the old `BepInEx\plugins\DungeonSettlers.ExpeditionEditor.dll` with the DLL from this release.
+
+This release does **not** include a configuration file, so your existing editor settings are not overwritten by the ZIP.
 
 ## Features
 
@@ -54,7 +60,7 @@ To configure talents for a slot:
 
 The ARM step makes the recruitment-screen talent result match the selected values. The configured talents are also transferred to the actual founder when the campaign starts.
 
-## Talent Grade Values
+### Talent grade values
 
 - Poor = `-1`
 - Moderate = `0`
@@ -62,15 +68,13 @@ The ARM step makes the recruitment-screen talent result match the selected value
 - Exceptional = `2`
 - Genius = `3`
 
-## Configuration File
+## Configuration file
 
 The mod creates its configuration file automatically:
 
 ```text
 BepInEx\config\com.openai.dungeonsettlers.expeditioneditor.cfg
 ```
-
-The release ZIP does not include a configuration file, so updating the mod will not overwrite existing settings.
 
 Diagnostic logging can be enabled for troubleshooting:
 
@@ -81,17 +85,19 @@ DiagnosticLogging = true
 
 For normal play, `false` is recommended.
 
-## Save/Load Persistence Fix
+## v2.1.6 compatibility fix
 
-Dungeon Settlers applies talent grades as numeric stat contributions when rebuilding a unit from save data. Earlier builds could therefore count the talent contribution again after loading.
+Dungeon Settlers DS_B.0.4.23 moved the native `DetermineEstablishTalents` function. v2.1.5 had the correct expected CALL signatures but used addresses `0xE00` before the real sites, so the existing safety check refused to patch and the editor did not start.
 
-v2.1.4 keeps the proven founder-generation behavior and applies the persistence correction only while the game serializes `CampaignSaveData`. The correction uses the game's own `StatusComponent.SetGeneratedValue(...)` path, then immediately restores the live founder values after serialization. Talent values themselves are not suppressed or replaced.
+v2.1.6 corrects the seven native talent patch RVAs and verifies their expected five-byte CALL signatures before executable memory is changed. The editor's existing founder persistence, stat/talent transfer, UI, and save-only persistence compensation remain unchanged.
 
-This approach was tested with repeated campaign starts and save/load cycles on **DS_B.0.4.19**.
+## Known issue: Lumberjack background
 
-## Source Code
+**Do not select the `Lumberjack` background.** The current game data contains an unfinished/broken implementation that can open a placeholder or broken UI. v2.1.6 intentionally does not modify this game-side background behavior.
 
-The `source` folder contains the exact source used for this tested build.
+## Source code
+
+The `source` folder contains the v2.1.6 source package used for this compatibility release.
 
 To build manually, install the .NET SDK, open PowerShell in the `source` folder, and run:
 
@@ -102,8 +108,8 @@ Set-ExecutionPolicy -Scope Process Bypass
 
 ## Compatibility
 
-This release targets **Dungeon Settlers DS_B.0.4.19**, Windows x64, and BepInEx 6 IL2CPP.
+This release targets **Dungeon Settlers DS_B.0.4.23**, Windows x64, and **BepInEx 6 IL2CPP**. It was tested successfully in-game on DS_B.0.4.23.
 
-A future game update may change native IL2CPP code or offsets and require a compatibility update.
+A future game update may change native IL2CPP code or offsets and require another compatibility update.
 
-This is an unofficial community mod and is not affiliated with the game's developer or publisher.
+This is an unofficial community mod and is not affiliated with or endorsed by the game's developer or publisher.
